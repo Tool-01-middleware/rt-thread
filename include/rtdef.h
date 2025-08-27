@@ -1324,6 +1324,7 @@ enum rt_device_class_type
 #define RT_DEVICE_CTRL_CLR_INT          0x07            /**< clear interrupt */
 #define RT_DEVICE_CTRL_GET_INT          0x08            /**< get interrupt status */
 #define RT_DEVICE_CTRL_CONSOLE_OFLAG    0x09            /**< get console open flag */
+#define RT_DEVICE_CTRL_UART_DMA_RX_DISABLE_HALF_FULL_INT 0x0a  /**< disable UART RX DMA half/full transfer interrupts */
 #define RT_DEVICE_CTRL_MASK             0x1f            /**< mask for contrl commands */
 
 /**

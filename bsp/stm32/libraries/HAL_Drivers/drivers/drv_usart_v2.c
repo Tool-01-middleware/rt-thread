@@ -286,6 +286,17 @@ static rt_err_t stm32_control(struct rt_serial_device *serial, int cmd, void *ar
             stm32_control(serial, RT_DEVICE_CTRL_SET_INT, (void *)ctrl_arg);
         break;
 
+    case RT_DEVICE_CTRL_UART_DMA_RX_DISABLE_HALF_FULL_INT:
+#ifdef RT_SERIAL_USING_DMA
+        if ((uart->uart_dma_flag & RT_DEVICE_FLAG_DMA_RX))
+        {
+            /* only disable DMA RX half/full transfer interrupts, keep IDLE irq */
+            __HAL_DMA_DISABLE_IT(&(uart->dma_rx.handle), DMA_IT_HT);
+            __HAL_DMA_DISABLE_IT(&(uart->dma_rx.handle), DMA_IT_TC);
+        }
+#endif
+        break;
+
     case RT_DEVICE_CHECK_OPTMODE: {
         if (ctrl_arg & RT_DEVICE_FLAG_DMA_TX)
             return RT_SERIAL_TX_BLOCKING_NO_BUFFER;
