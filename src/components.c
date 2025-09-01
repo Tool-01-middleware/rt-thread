@@ -21,6 +21,35 @@
 #include <rthw.h>
 #include <rtthread.h>
 
+#ifdef L3_PERIPHERAL_03_DFU_CONFIG_EN
+#include <stm32f4xx_hal.h>
+/* 外部函数声明 */
+extern int check_dfu_flag(void);
+
+/* DFU跳转函数 */
+static void JumpToBootloader(void) {
+  void (*SysMemBootJump)(void);
+
+  /* 启用SYSCFG时钟 */
+  __HAL_RCC_SYSCFG_CLK_ENABLE();
+
+  /* 重新映射系统内存到地址0x00000000 */
+  __HAL_SYSCFG_REMAPMEMORY_SYSTEMFLASH();
+
+  /* 设置向量表偏移为0 */
+  SCB->VTOR = 0;
+
+  /* 获取跳转函数指针 */
+  SysMemBootJump = (void (*)(void))(*((uint32_t *)(4)));
+
+  /* 设置主堆栈指针 */
+  __set_MSP(*(uint32_t *)(0));
+
+  /* 跳转到bootloader */
+  SysMemBootJump();
+}
+#endif
+
 #ifdef RT_USING_USER_MAIN
 #ifndef RT_MAIN_THREAD_STACK_SIZE
 #define RT_MAIN_THREAD_STACK_SIZE     2048
@@ -237,6 +266,14 @@ void rt_application_init(void)
  */
 int rtthread_startup(void)
 {
+#ifdef L3_PERIPHERAL_03_DFU_CONFIG_EN
+  /* 在系统启动最开始检查DFU标志 */
+  if (check_dfu_flag()) {
+    /* 检测到DFU标志，直接跳转到DFU bootloader */
+    JumpToBootloader();
+  }
+#endif
+
 #ifdef RT_USING_SMP
     rt_hw_spin_lock_init(&_cpus_lock);
 #endif
