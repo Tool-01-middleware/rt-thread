@@ -425,7 +425,8 @@ static const struct rt_uart_ops at32_uart_ops = {
 #ifdef RT_SERIAL_USING_DMA
 void dma_rx_isr(struct rt_serial_device *serial)
 {
-    volatile rt_uint32_t reg_sts = 0, index = 0;
+    //volatile rt_uint32_t reg_sts = 0, index = 0;
+    volatile rt_uint32_t index = 0;
     rt_size_t recv_len = 0, counter = 0;
     struct at32_uart *instance;
     RT_ASSERT(serial != RT_NULL);
