@@ -807,6 +807,13 @@ static void fal(rt_uint8_t argc, char **argv) {
                     {
                         size = part_dev->len;
                     }
+                    else
+                    {
+                        rt_kprintf("No flash device or partition was probed. Please run 'fal probe'.\n");
+                        rt_free(write_data);
+                        rt_free(read_data);
+                        return;
+                    }
                     /* benchmark testing */
                     rt_kprintf("Erasing %ld bytes data, waiting...\n", size);
                     start_time = rt_tick_get();
