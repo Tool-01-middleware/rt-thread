@@ -934,6 +934,7 @@ static void at32_uart_get_config(void)
 #endif
 
 #ifdef BSP_USING_UART2
+    config.baud_rate = 57600;
     uart_config[UART2_INDEX].uart_dma_flag = 0;
     uart_config[UART2_INDEX].serial.config = config;
     uart_config[UART2_INDEX].serial.config.rx_bufsz = BSP_UART2_RX_BUFSIZE;
