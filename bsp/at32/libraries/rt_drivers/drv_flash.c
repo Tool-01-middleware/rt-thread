@@ -185,9 +185,9 @@ const struct fal_flash_dev at32_onchip_flash =
     FLASH_PAGE_SIZE,
     {
         NULL,
-        fal_flash_read,
-        fal_flash_write,
-        fal_flash_erase
+        (int (*)(long, rt_uint8_t *, rt_size_t))fal_flash_read,
+        (int (*)(long, const rt_uint8_t *, rt_size_t))fal_flash_write,
+        (int (*)(long, rt_size_t))fal_flash_erase
     }
 };
 
