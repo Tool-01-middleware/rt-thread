@@ -64,6 +64,15 @@ static struct at32_spi_config spi_config[] = {
 #endif
 };
 
+/* DMA 完成信号量（用于阻塞等待 DMA 传输完成，释放 CPU 资源） */
+#define SPI_MAX_COUNT (sizeof(spi_config) / sizeof(spi_config[0]))
+static struct rt_semaphore spi_dma_tx_sem[SPI_MAX_COUNT];
+static struct rt_semaphore spi_dma_rx_sem[SPI_MAX_COUNT];
+static rt_bool_t spi_dma_sem_inited = RT_FALSE;
+
+/* SPI 实例数组（前向声明，定义在后面） */
+static struct at32_spi spis[SPI_MAX_COUNT];
+
 /* private rt-thread spi ops function */
 static rt_err_t configure(struct rt_spi_device* device, struct rt_spi_configuration* configuration);
 static rt_ssize_t xfer(struct rt_spi_device* device, struct rt_spi_message* message);
@@ -417,9 +426,21 @@ static rt_ssize_t xfer(struct rt_spi_device* device, struct rt_spi_message* mess
             {
                 _spi_dma_receive(instance, (uint8_t *)recv_buf, send_length);
                 _spi_dma_transmit(instance, (uint8_t *)send_buf, send_length);
-                /* wait transfer complete */
+                /* wait transfer complete - 使用阻塞等待，释放 CPU 资源 */
                 while(spi_i2s_flag_get(instance->config->spi_x, SPI_I2S_BF_FLAG) != RESET);
-                while((instance->config->dma_tx->dma_done == RT_FALSE) || (instance->config->dma_rx->dma_done == RT_FALSE));
+                /* 获取 SPI 实例索引 */
+                int spi_idx = (int)(instance - spis);
+                if (spi_idx >= 0 && spi_idx < SPI_MAX_COUNT && spi_dma_sem_inited)
+                {
+                    /* 阻塞等待 TX 和 RX DMA 完成 */
+                    rt_sem_take(&spi_dma_tx_sem[spi_idx], RT_WAITING_FOREVER);
+                    rt_sem_take(&spi_dma_rx_sem[spi_idx], RT_WAITING_FOREVER);
+                }
+                else
+                {
+                    /* 如果信号量未初始化，回退到忙等 */
+                    while((instance->config->dma_tx->dma_done == RT_FALSE) || (instance->config->dma_rx->dma_done == RT_FALSE));
+                }
                 /* clear rx overrun flag */
                 spi_i2s_flag_clear(instance->config->spi_x, SPI_I2S_ROERR_FLAG);
                 spi_enable(instance->config->spi_x, FALSE);
@@ -435,9 +456,20 @@ static rt_ssize_t xfer(struct rt_spi_device* device, struct rt_spi_message* mess
             if (instance->config->spi_dma_flag & RT_DEVICE_FLAG_DMA_TX)
             {
                 _spi_dma_transmit(instance, (uint8_t *)send_buf, send_length);
-                /* wait transfer complete */
+                /* wait transfer complete - 使用阻塞等待，释放 CPU 资源 */
                 while(spi_i2s_flag_get(instance->config->spi_x, SPI_I2S_BF_FLAG) != RESET);
-                while(instance->config->dma_tx->dma_done == RT_FALSE);
+                /* 获取 SPI 实例索引 */
+                int spi_idx = (int)(instance - spis);
+                if (spi_idx >= 0 && spi_idx < SPI_MAX_COUNT && spi_dma_sem_inited)
+                {
+                    /* 阻塞等待 TX DMA 完成 */
+                    rt_sem_take(&spi_dma_tx_sem[spi_idx], RT_WAITING_FOREVER);
+                }
+                else
+                {
+                    /* 如果信号量未初始化，回退到忙等 */
+                    while(instance->config->dma_tx->dma_done == RT_FALSE);
+                }
                 /* clear rx overrun flag */
                 spi_i2s_flag_clear(instance->config->spi_x, SPI_I2S_ROERR_FLAG);
                 spi_enable(instance->config->spi_x, FALSE);
@@ -461,9 +493,21 @@ static rt_ssize_t xfer(struct rt_spi_device* device, struct rt_spi_message* mess
             {
                 _spi_dma_receive(instance, (uint8_t *)recv_buf, send_length);
                 _spi_dma_transmit(instance, (uint8_t *)recv_buf, send_length);
-                /* wait transfer complete */
+                /* wait transfer complete - 使用阻塞等待，释放 CPU 资源 */
                 while(spi_i2s_flag_get(instance->config->spi_x, SPI_I2S_BF_FLAG) != RESET);
-                while((instance->config->dma_tx->dma_done == RT_FALSE) || (instance->config->dma_rx->dma_done == RT_FALSE));
+                /* 获取 SPI 实例索引 */
+                int spi_idx = (int)(instance - spis);
+                if (spi_idx >= 0 && spi_idx < SPI_MAX_COUNT && spi_dma_sem_inited)
+                {
+                    /* 阻塞等待 TX 和 RX DMA 完成 */
+                    rt_sem_take(&spi_dma_tx_sem[spi_idx], RT_WAITING_FOREVER);
+                    rt_sem_take(&spi_dma_rx_sem[spi_idx], RT_WAITING_FOREVER);
+                }
+                else
+                {
+                    /* 如果信号量未初始化，回退到忙等 */
+                    while((instance->config->dma_tx->dma_done == RT_FALSE) || (instance->config->dma_rx->dma_done == RT_FALSE));
+                }
                 /* clear rx overrun flag */
                 spi_i2s_flag_clear(instance->config->spi_x, SPI_I2S_ROERR_FLAG);
                 spi_enable(instance->config->spi_x, FALSE);
@@ -579,9 +623,25 @@ static void at32_spi_dma_init(struct at32_spi *instance)
     }
 }
 
+/* 查找 DMA 配置对应的 SPI 实例索引 */
+static int _find_spi_index_by_dma_config(struct dma_config *dma_instance)
+{
+    int i;
+    for (i = 0; i < SPI_MAX_COUNT; i++)
+    {
+        if (spi_config[i].dma_rx == dma_instance || spi_config[i].dma_tx == dma_instance)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void spi_dma_isr(struct dma_config *dma_instance)
 {
     volatile rt_uint32_t reg_sts = 0, index = 0;
+    int spi_idx;
+    rt_bool_t is_tx = RT_FALSE;
 
     reg_sts = dma_instance->dma_x->sts;
     index = dma_instance->channel_index;
@@ -597,6 +657,30 @@ void spi_dma_isr(struct dma_config *dma_instance)
         dma_channel_enable(dma_instance->dma_channel, FALSE);
         /* mark done flag */
         dma_instance->dma_done = RT_TRUE;
+        
+        /* 释放信号量，唤醒等待的线程（阻塞等待 DMA 完成） */
+        spi_idx = _find_spi_index_by_dma_config(dma_instance);
+        if (spi_idx >= 0 && spi_dma_sem_inited)
+        {
+            /* 判断是 TX 还是 RX DMA */
+            if (spi_config[spi_idx].dma_tx == dma_instance)
+            {
+                is_tx = RT_TRUE;
+            }
+            else if (spi_config[spi_idx].dma_rx == dma_instance)
+            {
+                is_tx = RT_FALSE;
+            }
+            
+            if (is_tx)
+            {
+                rt_sem_release(&spi_dma_tx_sem[spi_idx]);
+            }
+            else
+            {
+                rt_sem_release(&spi_dma_rx_sem[spi_idx]);
+            }
+        }
     }
 }
 
@@ -816,7 +900,8 @@ void SPI3_2_TX_RX_DMA_IRQHandler(void)
 }
 #endif
 
-static struct at32_spi spis[sizeof(spi_config) / sizeof(spi_config[0])] = {0};
+/* SPI 实例数组定义（初始化在前面已声明） */
+static struct at32_spi spis[SPI_MAX_COUNT] = {0};
 
 static void at32_spi_get_dma_config(void)
 {
@@ -882,8 +967,22 @@ int rt_hw_spi_init(void)
     int i;
     rt_err_t result;
     rt_size_t obj_num = sizeof(spi_config) / sizeof(spi_config[0]);
+    char sem_name[RT_NAME_MAX];
 
     at32_spi_get_dma_config();
+
+    /* 初始化 DMA 完成信号量（用于阻塞等待，释放 CPU 资源） */
+    if (!spi_dma_sem_inited)
+    {
+        for (i = 0; i < SPI_MAX_COUNT; i++)
+        {
+            rt_snprintf(sem_name, sizeof(sem_name), "spi%dtx", i);
+            rt_sem_init(&spi_dma_tx_sem[i], sem_name, 0, RT_IPC_FLAG_FIFO);
+            rt_snprintf(sem_name, sizeof(sem_name), "spi%drx", i);
+            rt_sem_init(&spi_dma_rx_sem[i], sem_name, 0, RT_IPC_FLAG_FIFO);
+        }
+        spi_dma_sem_inited = RT_TRUE;
+    }
 
     for (i = 0; i < obj_num; i++)
     {
