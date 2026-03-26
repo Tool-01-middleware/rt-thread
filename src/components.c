@@ -227,7 +227,7 @@ static void main_thread_entry(void *parameter)
         $Super$$main(); /* for ARMCC. */
     }
 #elif defined(__ICCARM__) || defined(__GNUC__) || defined(__TASKING__) || defined(__TI_COMPILER_VERSION__)
-    // main();
+    main();
 #endif /* __ARMCC_VERSION */
 }
 
