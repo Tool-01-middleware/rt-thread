@@ -263,6 +263,7 @@ ualtsetting_t rt_usbd_altsetting_new(rt_size_t desc_size);
 
 rt_err_t rt_usbd_core_init(void);
 rt_err_t rt_usb_device_init(void);
+rt_err_t rt_usbd_device_unregister(udevice_t device);
 rt_err_t rt_usbd_event_signal(struct udev_msg* msg);
 rt_err_t rt_usbd_device_set_controller(udevice_t device, udcd_t dcd);
 rt_err_t rt_usbd_device_set_descriptor(udevice_t device, udev_desc_t dev_desc);

@@ -1353,19 +1353,30 @@ udevice_t rt_usbd_find_device(udcd_t dcd)
 {
     struct rt_list_node* node;
     udevice_t device;
+    udevice_t found;
 
     /* parameter check */
     RT_ASSERT(dcd != RT_NULL);
 
+    found = RT_NULL;
     /* search a device in the the device list */
     for (node = device_list.next; node != &device_list; node = node->next)
     {
         device = (udevice_t)rt_list_entry(node, struct udevice, list);
-        if(device->dcd == dcd) return device;
+        if(device->dcd == dcd) found = device;
     }
+
+    if (found != RT_NULL) return found;
 
     rt_kprintf("can't find device\n");
     return RT_NULL;
+}
+
+rt_err_t rt_usbd_device_unregister(udevice_t device)
+{
+    RT_ASSERT(device != RT_NULL);
+    rt_list_remove(&device->list);
+    return RT_EOK;
 }
 
 /**

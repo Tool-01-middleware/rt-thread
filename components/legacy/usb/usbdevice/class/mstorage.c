@@ -22,6 +22,7 @@
 #endif
 #ifdef RT_USB_DEVICE_MSTORAGE
 #define MSTRORAGE_INTF_STR_INDEX 11
+#define MSTORAGE_PRODUCT_ID      (_PRODUCT_ID + 1)
 
 #define DBG_TAG           "usbdevice.mstorage"
 #define DBG_LVL           DBG_INFO
@@ -88,7 +89,7 @@ static struct udevice_descriptor dev_desc =
     0x50,                       //bDeviceProtocol;
     0x40,                       //bMaxPacketSize0;
     _VENDOR_ID,                 //idVendor;
-    _PRODUCT_ID,                //idProduct;
+    MSTORAGE_PRODUCT_ID,        //idProduct;
     USB_BCD_DEVICE,             //bcdDevice;
     USB_STRING_MANU_INDEX,      //iManufacturer;
     USB_STRING_PRODUCT_INDEX,   //iProduct;
@@ -1162,6 +1163,8 @@ int rt_usbd_msc_class_register(void)
     rt_usbd_class_register(&msc_class);
     return 0;
 }
+#ifndef RT_USB_DYNAMIC_CLASS_SELECT
 INIT_PREV_EXPORT(rt_usbd_msc_class_register);
+#endif
 
 #endif

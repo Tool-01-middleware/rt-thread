@@ -19,6 +19,7 @@
 
 static PCD_HandleTypeDef _stm_pcd;
 static struct udcd _stm_udc;
+static rt_bool_t _stm_usbd_started;
 static struct ep_id _ep_pool[] =
 {
     {0x0,  USB_EP_ATTR_CONTROL,     USB_DIR_INOUT,  64, ID_ASSIGNED  },
@@ -47,6 +48,23 @@ static struct ep_id _ep_pool[] =
 #endif
     {0xFF, USB_EP_ATTR_TYPE_MASK,   USB_DIR_MASK,   0,  ID_ASSIGNED  },
 };
+
+static void _stm_usbd_reset_ep_pool(void)
+{
+    rt_size_t i;
+
+    for (i = 0; _ep_pool[i].addr != 0xFF; i++)
+    {
+        if (_ep_pool[i].addr == 0x0)
+        {
+            _ep_pool[i].status = ID_ASSIGNED;
+        }
+        else
+        {
+            _ep_pool[i].status = ID_UNASSIGNED;
+        }
+    }
+}
 
 void USBD_IRQ_HANDLER(void)
 {
@@ -208,6 +226,7 @@ static rt_err_t _init(rt_device_t device)
     pcd = (PCD_HandleTypeDef *)device->user_data;
     pcd->Instance = USBD_INSTANCE;
     memset(&pcd->Init, 0, sizeof pcd->Init);
+    _stm_usbd_reset_ep_pool();
     pcd->Init.dev_endpoints = 8;
     pcd->Init.speed = USBD_PCD_SPEED;
     pcd->Init.ep0_mps = EP_MPS_64;
@@ -235,6 +254,41 @@ static rt_err_t _init(rt_device_t device)
     HAL_PCDEx_PMAConfig(pcd, 0x83, PCD_SNG_BUF, 0x198);
 #endif
     HAL_PCD_Start(pcd);
+    HAL_PCD_DevConnect(pcd);
+    _stm_usbd_started = RT_TRUE;
+    return RT_EOK;
+}
+
+udcd_t stm_usbd_get_udcd(void)
+{
+    return &_stm_udc;
+}
+
+int stm_usbd_start(void)
+{
+    if (_stm_usbd_started == RT_TRUE)
+    {
+        return RT_EOK;
+    }
+
+    return rt_device_init((rt_device_t)&_stm_udc);
+}
+
+int stm_usbd_stop(void)
+{
+    if (_stm_usbd_started == RT_FALSE)
+    {
+        return RT_EOK;
+    }
+
+    HAL_PCD_DevDisconnect(&_stm_pcd);
+    rt_thread_mdelay(20);
+    HAL_PCD_Stop(&_stm_pcd);
+    HAL_PCD_DeInit(&_stm_pcd);
+    HAL_NVIC_DisableIRQ(USBD_IRQ_TYPE);
+    _stm_usbd_reset_ep_pool();
+    _stm_usbd_started = RT_FALSE;
+
     return RT_EOK;
 }
 
@@ -284,7 +338,9 @@ int stm_usbd_register(void)
     _stm_udc.device_is_hs = RT_TRUE;
 #endif
     rt_device_register((rt_device_t)&_stm_udc, "usbd", 0);
+#ifndef RT_USB_DYNAMIC_CLASS_SELECT
     rt_usb_device_init();
+#endif
     return RT_EOK;
 }
 INIT_DEVICE_EXPORT(stm_usbd_register);

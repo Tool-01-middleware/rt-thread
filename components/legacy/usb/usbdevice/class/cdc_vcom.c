@@ -1003,6 +1003,8 @@ int rt_usbd_vcom_class_register(void)
     rt_usbd_class_register(&vcom_class);
     return 0;
 }
+#ifndef RT_USB_DYNAMIC_CLASS_SELECT
 INIT_PREV_EXPORT(rt_usbd_vcom_class_register);
+#endif
 
 #endif
