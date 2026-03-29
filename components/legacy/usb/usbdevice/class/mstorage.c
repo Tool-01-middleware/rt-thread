@@ -313,13 +313,17 @@ static rt_ssize_t _request_sense(ufunction_t func, ustorage_cbw_t cbw)
 
     buf->ErrorCode = 0x70;
     buf->Valid = 0;
-    buf->SenseKey = 2;
+    /*
+     * Report a ready medium by default. Returning "No Medium" here causes
+     * Windows to keep probing the device before the drive becomes usable.
+     */
+    buf->SenseKey = 0;
     buf->Information[0] = 0;
     buf->Information[1] = 0;
     buf->Information[2] = 0;
     buf->Information[3] = 0;
     buf->AdditionalSenseLength = 0x0a;
-    buf->AdditionalSenseCode   = 0x3a;
+    buf->AdditionalSenseCode   = 0x00;
     buf->AdditionalSenseCodeQualifier = 0;
 
     data->cb_data_size = MIN(data->cb_data_size, SIZEOF_REQUEST_SENSE);

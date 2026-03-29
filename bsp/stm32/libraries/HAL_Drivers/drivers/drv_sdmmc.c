@@ -54,6 +54,15 @@ struct rthw_sdio
 rt_align(SDIO_ALIGN_LEN)
 static rt_uint8_t cache_buf[SDIO_BUFF_SIZE];
 
+static rt_bool_t stm32_sdmmc_dcache_enabled(void)
+{
+#if defined(__DCACHE_PRESENT) && (__DCACHE_PRESENT == 1U)
+    return (SCB->CCR & SCB_CCR_DC_Msk) != 0U ? RT_TRUE : RT_FALSE;
+#else
+    return RT_FALSE;
+#endif
+}
+
 /**
   * @brief  This function get order from sdio.
   * @param  data
@@ -261,7 +270,10 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
     /* data pre configuration */
     if (data != RT_NULL)
     {
-        SCB_CleanInvalidateDCache();
+        if (stm32_sdmmc_dcache_enabled() == RT_TRUE)
+        {
+            SCB_CleanInvalidateDCache();
+        }
 
         reg_cmd |= SDMMC_CMD_CMDTRANS;
         __HAL_SD_DISABLE_IT(&sdio->sdio_des.hw_sdio, SDMMC_MASK_CMDRENDIE | SDMMC_MASK_CMDSENTIE);
@@ -310,7 +322,10 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
         if (data->flags & DATA_DIR_READ)
         {
             rt_memcpy(data->buf, cache_buf, data->blks * data->blksize);
-            SCB_CleanInvalidateDCache();
+            if (stm32_sdmmc_dcache_enabled() == RT_TRUE)
+            {
+                SCB_CleanInvalidateDCache();
+            }
         }
     }
 }
