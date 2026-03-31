@@ -26,6 +26,45 @@
 extern rt_err_t rt_spi_bus_device_init(struct rt_spi_bus *bus, const char *name);
 extern rt_err_t rt_spidev_device_init(struct rt_spi_device *dev, const char *name);
 
+static rt_bool_t _spi_config_equals(const struct rt_spi_configuration *lhs,
+                                    const struct rt_spi_configuration *rhs)
+{
+    RT_ASSERT(lhs != RT_NULL);
+    RT_ASSERT(rhs != RT_NULL);
+
+    return (lhs->data_width == rhs->data_width) &&
+           (lhs->mode == rhs->mode) &&
+           (lhs->max_hz == rhs->max_hz);
+}
+
+static rt_err_t _spi_take_bus_owner(struct rt_spi_device *device)
+{
+    RT_ASSERT(device != RT_NULL);
+    RT_ASSERT(device->bus != RT_NULL);
+
+    if (device->bus->owner == device)
+    {
+        return RT_EOK;
+    }
+
+    if (device->bus->current_config_valid &&
+        _spi_config_equals(&device->bus->current_config, &device->config))
+    {
+        device->bus->owner = device;
+        return RT_EOK;
+    }
+
+    rt_err_t result = device->bus->ops->configure(device, &device->config);
+    if (result == RT_EOK)
+    {
+        device->bus->owner = device;
+        device->bus->current_config = device->config;
+        device->bus->current_config_valid = RT_TRUE;
+    }
+
+    return result;
+}
+
 rt_err_t spi_bus_register(struct rt_spi_bus       *bus,
                           const char              *name,
                           const struct rt_spi_ops *ops)
@@ -42,6 +81,8 @@ rt_err_t spi_bus_register(struct rt_spi_bus       *bus,
     bus->ops = ops;
     /* initialize owner */
     bus->owner = RT_NULL;
+    rt_memset(&bus->current_config, 0, sizeof(bus->current_config));
+    bus->current_config_valid = RT_FALSE;
 
 #ifdef RT_USING_DM
     if (!bus->slave)
@@ -149,6 +190,11 @@ rt_err_t rt_spi_bus_configure(struct rt_spi_device *device)
                     /* configure SPI bus failed */
                     LOG_E("SPI device %s configuration failed", device->parent.parent.name);
                 }
+                else
+                {
+                    device->bus->current_config = device->config;
+                    device->bus->current_config_valid = RT_TRUE;
+                }
             }
             else
             {
@@ -230,14 +276,8 @@ rt_err_t rt_spi_send_then_send(struct rt_spi_device *device,
     {
         if (device->bus->owner != device)
         {
-            /* not the same owner as current, re-configure SPI bus */
-            result = device->bus->ops->configure(device, &device->config);
-            if (result == RT_EOK)
-            {
-                /* set SPI bus owner */
-                device->bus->owner = device;
-            }
-            else
+            result = _spi_take_bus_owner(device);
+            if (result != RT_EOK)
             {
                 /* configure SPI bus failed */
                 LOG_E("SPI device %s configuration failed", device->parent.parent.name);
@@ -305,14 +345,8 @@ rt_err_t rt_spi_send_then_recv(struct rt_spi_device *device,
     {
         if (device->bus->owner != device)
         {
-            /* not the same owner as current, re-configure SPI bus */
-            result = device->bus->ops->configure(device, &device->config);
-            if (result == RT_EOK)
-            {
-                /* set SPI bus owner */
-                device->bus->owner = device;
-            }
-            else
+            result = _spi_take_bus_owner(device);
+            if (result != RT_EOK)
             {
                 /* configure SPI bus failed */
                 LOG_E("SPI device %s configuration failed", device->parent.parent.name);
@@ -379,14 +413,8 @@ rt_ssize_t rt_spi_transfer(struct rt_spi_device *device,
     {
         if (device->bus->owner != device)
         {
-            /* not the same owner as current, re-configure SPI bus */
-            result = device->bus->ops->configure(device, &device->config);
-            if (result == RT_EOK)
-            {
-                /* set SPI bus owner */
-                device->bus->owner = device;
-            }
-            else
+            result = _spi_take_bus_owner(device);
+            if (result != RT_EOK)
             {
                 /* configure SPI bus failed */
                 LOG_E("SPI device %s configuration failed", device->parent.parent.name);
@@ -486,14 +514,8 @@ struct rt_spi_message *rt_spi_transfer_message(struct rt_spi_device  *device,
     /* configure SPI bus */
     if (device->bus->owner != device)
     {
-        /* not the same owner as current, re-configure SPI bus */
-        result = device->bus->ops->configure(device, &device->config);
-        if (result == RT_EOK)
-        {
-            /* set SPI bus owner */
-            device->bus->owner = device;
-        }
-        else
+        result = _spi_take_bus_owner(device);
+        if (result != RT_EOK)
         {
             /* configure SPI bus failed */
             goto __exit;
@@ -536,14 +558,8 @@ rt_err_t rt_spi_take_bus(struct rt_spi_device *device)
     /* configure SPI bus */
     if (device->bus->owner != device)
     {
-        /* not the same owner as current, re-configure SPI bus */
-        result = device->bus->ops->configure(device, &device->config);
-        if (result == RT_EOK)
-        {
-            /* set SPI bus owner */
-            device->bus->owner = device;
-        }
-        else
+        result = _spi_take_bus_owner(device);
+        if (result != RT_EOK)
         {
             /* configure SPI bus failed */
             rt_mutex_release(&(device->bus->lock));

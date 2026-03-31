@@ -182,6 +182,8 @@ struct rt_spi_bus
 
     struct rt_mutex lock;
     struct rt_spi_device *owner;
+    struct rt_spi_configuration current_config;
+    rt_bool_t current_config_valid;
 };
 
 /**
